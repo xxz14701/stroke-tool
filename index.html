@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>筆畫教學工具（最終版）</title>
+
+<!-- 筆畫 -->
+<script src="./ag-psd.min.js"></script>
+
+<!-- Canvas -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+
+<!-- ✅ 本地PSD -->
+<script src="./ag-psd.js"></script>
+
+<style>
+body {
+  font-family: "Microsoft JhengHei";
+  background: #f5f7fb;
+  text-align: center;
+}
+
+h2 {
+  margin-top: 20px;
+}
+
+.panel {
+  background: white;
+  padding: 12px;
+  border-radius: 12px;
+  display: inline-block;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+input {
+  padding: 8px;
+  font-size: 16px;
+  width: 120px;
+}
+
+button {
+  margin: 5px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #4CAF50;
+  color: white;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #45a049;
+}
+
+canvas {
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  margin-top: 10px;
+}
+
+#writerArea {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>✍️ 中文筆畫教學工具（穩定版）</h2>
+
+<div class="panel">
+  <input id="textInput" value="春天">
+  <button onclick="generate()">產生筆畫</button>
+  <button onclick="playAnimation()">播放筆順</button>
+  <button onclick="downloadPNG()">匯出PNG</button>
+  <button onclick="downloadPSD()">匯出PSD</button>
+</div>
+
+<div id="writerArea"></div>
+
+<canvas id="c" width="500" height="320"></canvas>
+
+<script>
+const canvas = new fabric.Canvas('c');
+let writers = [];
+
+async function generate(){
+  canvas.clear();
+  writerArea.innerHTML = "";
+  writers = [];
+
+  let text = document.getElementById("textInput").value;
+
+  for(let i=0;i<text.length;i++){
+    let char = text[i];
+
+    let div = document.createElement("div");
+    div.id = "w"+i;
+    div.style.width = "100px";
+    div.style.height = "100px";
+    writerArea.appendChild(div);
+
+    let writer = HanziWriter.create(div.id, char, {
+      width: 100,
+      height: 100,
+      showOutline: true
+    });
+
+    writers.push(writer);
+
+    let data = await HanziWriter.loadCharacterData(char);
+
+    data.strokes.forEach((stroke, index) => {
+      let path = new fabric.Path(stroke, {
+        fill: randomColor(),
+        left: 80*i + 50,
+        top: 100,
+        scaleX: 0.4,
+        scaleY: 0.4
+      });
+
+      path.strokeIndex = index;
+      path.char = char;
+
+      canvas.add(path);
+    });
+  }
+
+  canvas.renderAll();
+}
+
+// 筆順動畫
+function playAnimation(){
+  writers.forEach(w => w.animateCharacter());
+}
+
+// PNG
+function downloadPNG(){
+  let url = canvas.toDataURL({
+    format: 'png',
+    multiplier: 2
+  });
+
+  let a = document.createElement("a");
+  a.href = url;
+  a.download = "筆畫作品.png";
+  a.click();
+}
+
+// 🔥 PSD（最穩版）
+function downloadPSD(){
+
+  const psdLib = window.agPsd || window.agPsdWriter || agPsd;
+
+if(!psdLib){
+  alert("❌ PSD套件未載入成功");
+  return;
+}
+
+  const width = canvas.width;
+  const height = canvas.height;
+
+  let charGroups = {};
+
+  canvas.getObjects().forEach(obj=>{
+    if(!charGroups[obj.char]) charGroups[obj.char]=[];
+    charGroups[obj.char].push(obj);
+  });
+
+  let children = [];
+
+  Object.keys(charGroups).forEach(char=>{
+
+    let layers = [];
+
+    charGroups[char].forEach((obj,i)=>{
+
+      let temp = document.createElement('canvas');
+      temp.width = width;
+      temp.height = height;
+      let ctx = temp.getContext('2d');
+
+      // 白邊
+      ctx.shadowColor="white";
+      ctx.shadowBlur=8;
+      obj.render(ctx);
+
+      // 主體
+      ctx.shadowBlur=0;
+      obj.render(ctx);
+
+      layers.push({
+        name: char+"_筆_"+(i+1),
+        canvas: temp
+      });
+
+    });
+
+    children.push({
+      name: char,
+      children: layers
+    });
+
+  });
+
+  const psd = { width, height, children };
+
+  const buffer = psdLib.writePsd(psd);
+
+  const blob = new Blob([buffer]);
+
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "筆畫進化版.psd";
+  a.click();
+}
+
+// 顏色
+function randomColor(){
+  return '#'+Math.floor(Math.random()*16777215).toString(16);
+}
+</script>
+
+</body>
+</html>
