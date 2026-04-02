@@ -90,68 +90,15 @@ function downloadPNG(){
   a.click();
 }
 
-// 🔥 PSD（已修好）
 function downloadPSD(){
-
-  if(!window.agPsd){
-  alert("PSD套件載入失敗（請重新整理）");
-  return;
-}
-
-  const width = canvas.width;
-  const height = canvas.height;
-
-  let charGroups={};
-
-  canvas.getObjects().forEach(obj=>{
-    if(!charGroups[obj.char]) charGroups[obj.char]=[];
-    charGroups[obj.char].push(obj);
-  });
-
-  let children=[];
-
-  Object.keys(charGroups).forEach(char=>{
-
-    let layers=[];
-
-    charGroups[char].forEach((obj,i)=>{
-
-      let temp=document.createElement('canvas');
-      temp.width=width;
-      temp.height=height;
-      let ctx=temp.getContext('2d');
-
-      ctx.shadowColor="white";
-      ctx.shadowBlur=8;
-      obj.render(ctx);
-
-      ctx.shadowBlur=0;
-      obj.render(ctx);
-
-      layers.push({
-        name: char+"_筆_"+(i+1),
-        canvas: temp
-      });
-
-    });
-
-    children.push({
-      name: char,
-      children: layers
-    });
-
-  });
-
-  const psd = { width, height, children };
-
-  const buffer = window.agPsd.writePsd(psd);
-
-  const blob = new Blob([buffer]);
-
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);
-  a.download="筆畫作品.psd";
-  a.click();
+  const psdLib = window.AgPsd || window.agPsd;
+  if(!psdLib || !psdLib.writePsd){
+    alert("PSD套件載入失敗（請重新整理）");
+    return;
+  }
+  // ...
+  const buffer = psdLib.writePsd(psd); // 用 psdLib 而非 window.agPsd
+  // ...
 }
 
 function randomColor(){
