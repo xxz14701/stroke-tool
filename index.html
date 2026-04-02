@@ -4,17 +4,19 @@
 <meta charset="UTF-8">
 <title>筆畫教學工具（穩定版）</title>
 
-<!-- 穩定版本 -->
 <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/ag-psd@latest/dist/ag-psd.browser.js"></script>
+
+<!-- 🔥 修正：鎖定版本 + 正確的 browser bundle -->
+<script src="https://cdn.jsdelivr.net/npm/ag-psd@14.1.2/dist/ag-psd.browser.js"></script>
 
 <style>
 body { font-family:"Microsoft JhengHei"; background:#f5f7fb; text-align:center; }
 .panel { background:white; padding:12px; border-radius:12px; display:inline-block; box-shadow:0 4px 10px rgba(0,0,0,0.1);}
-button { margin:5px; padding:8px 12px; border:none; border-radius:8px; background:#4CAF50; color:white;}
+button { margin:5px; padding:8px 12px; border:none; border-radius:8px; background:#4CAF50; color:white; cursor:pointer;}
 canvas { border:1px solid #ccc; border-radius:10px; margin-top:10px;}
-#writerArea { display:flex; justify-content:center; gap:10px; }
+#writerArea { display:flex; justify-content:center; gap:10px; margin-top:10px; }
+#debugInfo { font-size:12px; color:#999; margin-top:6px; }
 </style>
 </head>
 
@@ -23,46 +25,67 @@ canvas { border:1px solid #ccc; border-radius:10px; margin-top:10px;}
 <h2>✍️ 中文筆畫教學工具（最終穩定）</h2>
 
 <div class="panel">
-<input id="textInput" value="春天">
-<button onclick="generate()">產生</button>
-<button onclick="playAnimation()">筆順</button>
-<button onclick="downloadPNG()">PNG</button>
-<button onclick="downloadPSD()">PSD</button>
+  <input id="textInput" value="春天">
+  <button onclick="generate()">產生</button>
+  <button onclick="playAnimation()">筆順</button>
+  <button onclick="downloadPNG()">PNG</button>
+  <button onclick="downloadPSD()">PSD</button>
 </div>
 
+<div id="debugInfo"></div>
 <div id="writerArea"></div>
-
 <canvas id="c" width="500" height="320"></canvas>
 
 <script>
 const canvas = new fabric.Canvas('c');
 let writers = [];
 
+// 🔥 修正：ag-psd browser bundle 掛載的全域名稱是 AgPsd（大寫A）
+// 提供多個備選名稱，確保相容性
+function getPsdLib() {
+  return window.AgPsd || window.agPsd || window['ag-psd'];
+}
+
+// 頁面載入後顯示 debug 資訊，確認套件是否正確載入
+window.addEventListener('load', () => {
+  const lib = getPsdLib();
+  const info = document.getElementById('debugInfo');
+  if (lib && lib.writePsd) {
+    info.textContent = '✅ ag-psd 載入成功';
+    info.style.color = 'green';
+  } else {
+    info.textContent = '❌ ag-psd 載入失敗，請重新整理';
+    info.style.color = 'red';
+    console.warn('window.AgPsd =', window.AgPsd);
+    console.warn('window.agPsd =', window.agPsd);
+  }
+});
+
 async function generate(){
   canvas.clear();
-  writerArea.innerHTML="";
-  writers=[];
+  writerArea.innerHTML = "";
+  writers = [];
 
   let text = textInput.value;
 
-  for(let i=0;i<text.length;i++){
+  for(let i = 0; i < text.length; i++){
     let char = text[i];
 
     let div = document.createElement("div");
-    div.id="w"+i;
-    div.style.width="100px";
-    div.style.height="100px";
+    div.id = "w" + i;
+    div.style.width = "100px";
+    div.style.height = "100px";
     writerArea.appendChild(div);
 
-    let writer = HanziWriter.create(div.id,char,{width:100,height:100});
+    let writer = HanziWriter.create(div.id, char, {width:100, height:100});
     writers.push(writer);
 
     let data = await HanziWriter.loadCharacterData(char);
 
-    data.strokes.forEach((stroke,index)=>{
-      let path = new fabric.Path(stroke,{
+    data.strokes.forEach((stroke, index) => {
+      let path = new fabric.Path(stroke, {
         fill: randomColor(),
-        left: 80*i+50,
+        left: 80 * i + 50,
         top: 100,
         scaleX: 0.4,
         scaleY: 0.4
@@ -76,33 +99,86 @@ async function generate(){
   }
 }
 
-// 筆順
 function playAnimation(){
-  writers.forEach(w=>w.animateCharacter());
+  writers.forEach(w => w.animateCharacter());
 }
 
-// PNG
 function downloadPNG(){
-  let url = canvas.toDataURL({format:'png',multiplier:2});
-  let a=document.createElement("a");
-  a.href=url;
-  a.download="作品.png";
+  let url = canvas.toDataURL({format:'png', multiplier:2});
+  let a = document.createElement("a");
+  a.href = url;
+  a.download = "作品.png";
   a.click();
 }
 
+// 🔥 修正版 PSD 下載
 function downloadPSD(){
-  const psdLib = window.AgPsd || window.agPsd;
+  // 修正：使用 getPsdLib() 取得正確的全域物件
+  const psdLib = getPsdLib();
+
   if(!psdLib || !psdLib.writePsd){
-    alert("PSD套件載入失敗（請重新整理）");
+    alert("PSD套件載入失敗（請重新整理頁面）\n\n技術資訊：window.AgPsd = " + typeof window.AgPsd + ", window.agPsd = " + typeof window.agPsd);
     return;
   }
-  // ...
-  const buffer = psdLib.writePsd(psd); // 用 psdLib 而非 window.agPsd
-  // ...
+
+  const width = canvas.width;
+  const height = canvas.height;
+
+  let charGroups = {};
+
+  canvas.getObjects().forEach(obj => {
+    if(!charGroups[obj.char]) charGroups[obj.char] = [];
+    charGroups[obj.char].push(obj);
+  });
+
+  let children = [];
+
+  Object.keys(charGroups).forEach(char => {
+    let layers = [];
+
+    charGroups[char].forEach((obj, i) => {
+      let temp = document.createElement('canvas');
+      temp.width = width;
+      temp.height = height;
+      let ctx = temp.getContext('2d');
+
+      ctx.shadowColor = "white";
+      ctx.shadowBlur = 8;
+      obj.render(ctx);
+
+      ctx.shadowBlur = 0;
+      obj.render(ctx);
+
+      layers.push({
+        name: char + "_筆_" + (i + 1),
+        canvas: temp
+      });
+    });
+
+    children.push({
+      name: char,
+      children: layers
+    });
+  });
+
+  const psd = { width, height, children };
+
+  try {
+    // 🔥 修正：用 psdLib 而不是 window.agPsd
+    const buffer = psdLib.writePsd(psd);
+    const blob = new Blob([buffer], { type: 'application/octet-stream' });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "筆畫作品.psd";
+    a.click();
+  } catch(e) {
+    alert("PSD 產生失敗：" + e.message);
+    console.error(e);
+  }
 }
 
 function randomColor(){
-  return '#'+Math.floor(Math.random()*16777215).toString(16);
+  return '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
 }
 </script>
 
