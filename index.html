@@ -4,9 +4,10 @@
 <meta charset="UTF-8">
 <title>筆畫教學工具（穩定版）</title>
 
+<!-- 穩定版本 -->
 <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
-<script src="https://unpkg.com/ag-psd@latest/dist/ag-psd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ag-psd@latest/dist/ag-psd.browser.js"></script>
 
 <style>
 body { font-family:"Microsoft JhengHei"; background:#f5f7fb; text-align:center; }
@@ -93,9 +94,9 @@ function downloadPNG(){
 function downloadPSD(){
 
   if(!window.agPsd){
-    alert("PSD套件未載入");
-    return;
-  }
+  alert("PSD套件載入失敗（請重新整理）");
+  return;
+}
 
   const width = canvas.width;
   const height = canvas.height;
